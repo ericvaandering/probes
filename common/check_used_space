@@ -24,3 +24,4 @@ for dict in c.get_rse_usage(host):
         else:
             print 'Used space has not been refreshed for more than 1 hour. Last refresh on %s' % str(dict['updated_at'])
             sys.exit(WARNING)
+
