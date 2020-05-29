@@ -1,0 +1,41 @@
+#!/usr/bin/env python
+# Copyright European Organization for Nuclear Research (CERN) 2013
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Authors:
+# - Donata Mielaikaite, <donata.mielaikaite@cern.ch>, 2020
+
+"""
+Probe to check the backlog of unlocked replicas per RSE.
+"""
+
+import sys
+
+from rucio.core import monitor
+from rucio.db.sqla.session import BASE, get_session
+
+# Exit statuses
+OK, WARNING, CRITICAL, UNKNOWN = 0, 1, 2, 3
+
+if BASE.metadata.schema:
+    schema = BASE.metadata.schema + '.'
+else:
+    schema = ''
+
+if __name__ == "__main__":
+    try:
+        session = get_session()
+        unlocked_sql = 'select  /*+ index_ffs(replicas REPLICAS_TOMBSTONE_IDX) */  count(*), rse from {schema}replicas join {schema}rses on replicas.rse_id = rses.id  where tombstone is not null group by rse'.format(schema=schema)
+        result = session.execute(unlocked_sql).fetchall()
+        for num, rse in result:
+            monitor.record_gauge(stat='reaper.unlocked_rse_replicas.%s' % (rse), value=num)
+        expired_sql = 'select  /*+ index_ffs(replicas REPLICAS_TOMBSTONE_IDX) */  count(*), rse from {schema}replicas join {schema}rses on replicas.rse_id = rses.id  where tombstone is not null and tombstone < sysdate - 2/24 group by rse'.format(schema=schema)
+        result = session.execute(expired_sql).fetchall()
+        for num, rse in result:
+            monitor.record_gauge(stat='reaper.expired_rse_replicas.%s' % (rse), value=num)
+    except:
+        sys.exit(UNKNOWN)
+    sys.exit(OK)

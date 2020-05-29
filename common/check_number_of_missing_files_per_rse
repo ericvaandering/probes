@@ -29,12 +29,25 @@ else:
 if __name__ == "__main__":
     try:
         session = get_session()
-        sql = 'SELECT rse_expression, (sum(length*copies) - sum(locks_ok_cnt)) as missing_files  from {schema}DIDS join {schema}RULES on DIDS.name = RULES.name where state!=\'O\' and (length !=locks_ok_cnt ) and length is not null and locks_ok_cnt is not null group by rse_expression'.format(schema=schema)
+        sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, count(*) \
+                 from {schema}requests \
+                 join {schema}rses on requests.dest_rse_id = rses.id \
+                 join {schema}rules on requests.rule_id = rules.id \
+                 where request_type='T' and rules.state!='O' \
+                 group by {schema}rses.rse""".format(schema=schema)
         result = session.execute(sql).fetchall()
-        for rse, missing_files in result:
-            monitor.record_gauge(stat='judge.number_of_missing_files.%s' %rse, value=missing_files)
+        for rse, num in result:
+            monitor.record_gauge(stat='judge.number_of_missing_files.%s' %rse, value=num)
+        sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, count(*) \
+                 from {schema}requests \
+                 join {schema}rses on requests.dest_rse_id = rses.id \
+                 join {schema}rules on requests.rule_id = rules.id \
+                 where request_type='T' and rules.state='R' \
+                 group by {schema}rses.rse""".format(schema=schema)
+        result = session.execute(sql).fetchall()
+        for rse, num in result:
+            monitor.record_gauge(stat='judge.number_of_replicating_files.%s' %rse, value=num)
     except:
         print traceback.format_exc()
         sys.exit(UNKNOWN)
     sys.exit(OK)
-
