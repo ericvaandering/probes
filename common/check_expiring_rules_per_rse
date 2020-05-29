@@ -8,28 +8,33 @@
 # Authors:
 # - Donata Mielaikaite, <donata.mielaikaite@cern.ch>, 2020
 
-'''
-Probe to check used space.
-'''
+"""
+Probe to check the number of expiring rules.
+"""
 
-import datetime
 import sys
 import traceback
+
 from rucio.core import monitor
-from rucio.core.rse import list_rses, get_rse_usage
+from rucio.db.sqla.session import BASE, get_session
 
 # Exit statuses
 OK, WARNING, CRITICAL, UNKNOWN = 0, 1, 2, 3
 
+if BASE.metadata.schema:
+    schema = BASE.metadata.schema + '.'
+else:
+    schema = ''
+
 if __name__ == "__main__":
     try:
-        for rse in list_rses():
-            limits = get_rse_usage(rse['id'])
-            for usage in limits:
-                if usage['source'] == 'rucio':
-                    monitor.record_gauge(stat='judge.used_space.%s' %rse['rse'], value=usage['used'])
+        session = get_session()
+        sql = 'SELECT rse_expression, count(*) from {schema}RULES where expires_at is not null group by rse_expression'.format(schema=schema)
+        result = session.execute(sql).fetchall()
+        for rse, count_files in result:
+            monitor.record_gauge(stat='judge.expiring_rules_number.%s' %rse, value=count_files)
     except:
-        print (traceback.format_exc())
+        print traceback.format_exc()
         sys.exit(UNKNOWN)
     sys.exit(OK)
 
