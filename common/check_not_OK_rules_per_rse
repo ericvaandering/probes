@@ -30,20 +30,20 @@ if __name__ == "__main__":
     try:
         session = get_session()
         sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, COUNT (DISTINCT rule_id) \
-                 from {schema}requests \ 
+                 from {schema}requests \
                  join {schema}rses on requests.dest_rse_id = rses.id \
-                 join {schema}rules on requests.rule_id = rules.id \ 
+                 join {schema}rules on requests.rule_id = rules.id \
                  where request_type='T' and rules.state!='O' \
-                 group by rse""".format(schema=schema)
+                 group by {schema}rses.rse""".format(schema=schema)
         result = session.execute(sql).fetchall()
         for count, rse in result:
-            monitor.record_gauge(stat='judge.not_OK_rules.%s' %rse, value=count)  
-        sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, COUNT (DISTINCT rule_id) \ 
-                 from {schema}requests \ 
-                 join {schema}rses on requests.dest_rse_id = rses.id \ 
-                 join {schema}rules on requests.rule_id = rules.id \ 
+            monitor.record_gauge(stat='judge.not_OK_rules.%s' %rse, value=count)
+        sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, COUNT (DISTINCT rule_id) \
+                 from {schema}requests \
+                 join {schema}rses on requests.dest_rse_id = rses.id \
+                 join {schema}rules on requests.rule_id = rules.id \
                  where request_type='T' and rules.state='R' \
-                 group by rse""".format(schema=schema)
+                 group by {schema}rses.rse""".format(schema=schema)
         result = session.execute(sql).fetchall()
         for count, rse in result:
             monitor.record_gauge(stat='judge.replicating_rules.%s' %rse, value=count)
@@ -51,4 +51,3 @@ if __name__ == "__main__":
         print traceback.format_exc()
         sys.exit(UNKNOWN)
     sys.exit(OK)
-

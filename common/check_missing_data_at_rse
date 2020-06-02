@@ -29,22 +29,22 @@ else:
 if __name__ == "__main__":
     try:
         session = get_session()
-        sql = """SELECT /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, sum(bytes), rse_type \ 
-               from {schema}requests \ 
-               join {schema}rses on requests.dest_rse_id = rses.id \ 
-               join {schema}rules on requests.rule_id = rules.id \ 
-               where requests.request_type='T' and rules.state!='O' \ 
-               group by rse,rse_type""".format(schema=schema)
+        sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, sum(bytes), rse_type \
+                 from {schema}requests \
+                 join {schema}rses on requests.dest_rse_id = rses.id \
+                 join {schema}rules on requests.rule_id = rules.id \
+                 where request_type='T' and rules.state!='O' \
+                 group by {schema}rses.rse, rse_type""".format(schema=schema)
         result = session.execute(sql).fetchall()
         for rse, bytes, rse_type in result:
             monitor.record_gauge(stat='requests.missing_data.%s.%s' % (rse_type, rse), value=bytes)
- 
+
         sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, sum(bytes), rse_type \
-               from {schema}requests \
-               join {schema}rses on requests.dest_rse_id = rses.id \
-               join {schema}rules on requests.rule_id = rules.id \ 
-               where request_type='T' and rules.state='R' \
-               group by rse,rse_type""".format(schema=schema)
+                 from {schema}requests \
+                 join {schema}rses on requests.dest_rse_id = rses.id \
+                 join {schema}rules on requests.rule_id = rules.id \
+                 where request_type='T' and rules.state='R' \
+                 group by {schema}rses.rse, rse_type""".format(schema=schema)
         result = session.execute(sql).fetchall()
         for rse, bytes, rse_type in result:
             monitor.record_gauge(stat='requests.replicating_data.%s.%s' % (rse_type, rse), value=bytes)
