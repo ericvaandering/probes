@@ -37,7 +37,7 @@ if __name__ == "__main__":
                  group by {schema}rses.rse, rse_type""".format(schema=schema)
         result = session.execute(sql).fetchall()
         for rse, bytes, rse_type in result:
-            monitor.record_gauge(stat='requests.missing_data.%s.%s' % (rse_type, rse), value=bytes)
+            monitor.record_gauge(stat='missing_data.%s.%s' % (rse_type, rse), value=bytes)
 
         sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, sum(bytes), rse_type \
                  from {schema}requests \
@@ -47,7 +47,7 @@ if __name__ == "__main__":
                  group by {schema}rses.rse, rse_type""".format(schema=schema)
         result = session.execute(sql).fetchall()
         for rse, bytes, rse_type in result:
-            monitor.record_gauge(stat='requests.replicating_data.%s.%s' % (rse_type, rse), value=bytes)
+            monitor.record_gauge(stat='replicating_data.%s.%s' % (rse_type, rse), value=bytes)
     except:
         print traceback.format_exc()
         sys.exit(UNKNOWN)
