@@ -11,29 +11,35 @@
 """
 Probe to check the nember of not OK rules.
 """
+from __future__ import print_function
 
 import sys
 import traceback
 
 from rucio.core import monitor
-from rucio.db.sqla.session import BASE, get_session
+from rucio.db.sqla import models
+from rucio.db.sqla.session import get_session
+from sqlalchemy import func
 
 # Exit statuses
 OK, WARNING, CRITICAL, UNKNOWN = 0, 1, 2, 3
 
-if BASE.metadata.schema:
-    schema = BASE.metadata.schema + '.'
-else:
-    schema = ''
+
+# TODO: Move get_count into utils
+# from rucio.db.sqla.util import get_count
+def get_count(q):
+    count_q = q.statement.with_only_columns([func.count()]).order_by(None)
+    count = q.session.execute(count_q).scalar()
+    return count
+
 
 if __name__ == "__main__":
     try:
         session = get_session()
-        sql = 'SELECT count(*) from {schema}RULES where state!=\'O\''.format(schema=schema)
-        result = session.execute(sql).fetchall()
-        monitor.record_gauge(stat='judge.total_not_OK_rules', value=result[0][0])
+        query = session.query(models.ReplicationRule.scope).filter(models.ReplicationRule.state.isnot('O'))
+        result = get_count(query)
+        monitor.record_gauge(stat='judge.total_not_OK_rules', value=result)
     except:
-        print traceback.format_exc()
+        print(traceback.format_exc())
         sys.exit(UNKNOWN)
     sys.exit(OK)
-
