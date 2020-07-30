@@ -7,6 +7,7 @@
 #
 # Authors:
 # - Wen Guan, <wguan@cern.ch>, 2014
+# - Donata Mielaikaite, <donata.mielaikaite@cern.ch>, 2020
 
 '''
 Probe to check rules.
@@ -15,17 +16,21 @@ Probe to check rules.
 import datetime
 import sys
 import time
+import traceback
 
 from rucio.core import monitor
-from rucio.db.sqla.session import get_session
+from rucio.db.sqla.session import BASE,get_session
+
+if BASE.metadata.schema:
+    schema = BASE.metadata.schema + '.'
+else:
+    schema = ''
 
 # Exit statuses
 OK, WARNING, CRITICAL, UNKNOWN = 0, 1, 2, 3
 
 
 if __name__ == "__main__":
-
-    scope = "stresstest"
 
     try:
         session = get_session()
@@ -41,62 +46,50 @@ if __name__ == "__main__":
                 WHEN state = 'O' THEN 'rules_ok'
                 WHEN state = 'S' THEN 'rules_stuck'
                 WHEN state = 'U' THEN 'rules_suspend'
-
+                WHEN state = 'W' THEN 'rules_waiting_approval'
             ELSE state
         END state_desc, num_rows FROM (select /*+ index_ffs((rules RULES_PK) */ state, count(*) num_rows
-        from atlas_rucio.rules where scope='tests' and account='ddmadmin' and rse_expression!='CERN-PROD-RUCIOTEST_DATADISK' group by state)
-        """
+        from {schema}rules group by state)
+        """.format(schema=schema)
 
         result = session.execute(sql).fetchall()
         for state, num in result:
-            print 'rules.%s %s' % (state, num)
-            monitor.record_gauge(stat='%s.rules.%s' % (scope, state), value=num)
+            print 'rules.count.%s %s' % (state, num)
+            monitor.record_gauge(stat='rules.count.%s' % (state), value=num)
 
-        # check stuck rules
-        sql = "select sum(locks_stuck_cnt)  from atlas_rucio.rules where scope='tests' and account='ddmadmin' and rse_expression!='CERN-PROD-RUCIOTEST_DATADISK' and state='S' "
-        result = session.execute(sql).fetchone()[0] or 0
-        print 'rules.sum_locks_stuck_cnt %s' % (result)
-        monitor.record_gauge(stat='%s.rules.sum_locks_stuck_cnt' % scope, value=result)
+        ages = {
+            'created_24hours_ago': datetime.timedelta(hours=24),
+            'created_1week_ago': datetime.timedelta(hours=168),
+            'created_3weeks_ago': datetime.timedelta(hours=672),
+        }
 
-        # check stuck rules older than 24 hours
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-        sql = "select sum(locks_stuck_cnt)  from atlas_rucio.rules where scope='tests' and account='ddmadmin' \
-               and rse_expression!='CERN-PROD-RUCIOTEST_DATADISK' and state='S' and created_at <= to_timestamp('" + str(timeLimit) + "','YYYY-MM-dd HH24:MI:SS.FF')"
+        # check left stuck files
+        sql = "select sum(locks_stuck_cnt) from {schema}rules where state='S'".format(schema=schema)
         result = session.execute(sql).fetchone()[0] or 0
-        print 'rules.created_24hours_ago.sum_locks_stuck_cnt %s' % (result)
-        monitor.record_gauge(stat='%s.rules.created_24hours_ago.sum_locks_stuck_cnt' % scope, value=result)
+        print 'rules.no_of_files.total.sum_locks_stuck_cnt %s' % (result)
+        monitor.record_gauge(stat='rules.no_of_files.total.sum_locks_stuck_cnt',value=result)
 
-        # check stuck rules older than 1 week
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=168)
-        sql = "select sum(locks_stuck_cnt)  from atlas_rucio.rules where scope='tests' and account='ddmadmin' \
-              and rse_expression!='CERN-PROD-RUCIOTEST_DATADISK' and state='S' and created_at <= to_timestamp('" + str(timeLimit) + "','YYYY-MM-dd HH24:MI:SS.FF')"
+        # check left replicating files
+        sql = "select sum(locks_replicating_cnt) from {schema}rules where state in ('S','R') ".format(schema=schema)
         result = session.execute(sql).fetchone()[0] or 0
-        print 'rules.created_1week_ago.sum_locks_stuck_cnt %s' % (result)
-        monitor.record_gauge(stat='%s.rules.created_1week_ago.sum_locks_stuck_cnt' % scope, value=result)
+        print 'rules.no_of_files.total.sum_locks_replicating_cnt %s' % (result)
+        monitor.record_gauge(stat='rules.no_of_files.total.sum_locks_replicating_cnt', value=result)
 
-        # check replicating rules
-        sql = "select sum(locks_replicating_cnt)  from atlas_rucio.rules where scope='tests' and account='ddmadmin' and rse_expression!='CERN-PROD-RUCIOTEST_DATADISK' and state in ('S','R') "
-        result = session.execute(sql).fetchone()[0] or 0
-        print 'rules.sum_locks_replicating_cnt %s' % (result)
-        monitor.record_gauge(stat='%s.rules.sum_locks_replicating_cnt' % scope, value=result)
-
-        # check replicating rules older than 24 hours
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
-        sql = "select sum(locks_replicating_cnt)  from atlas_rucio.rules where scope='tests' and account='ddmadmin' \
-               and rse_expression!='CERN-PROD-RUCIOTEST_DATADISK' and state in ('S','R') and created_at <= to_timestamp('" + str(timeLimit) + "','YYYY-MM-dd HH24:MI:SS.FF')"
-        result = session.execute(sql).fetchone()[0] or 0
-        print 'rules.created_24hours_ago.sum_locks_replicating_cnt %s' % (result)
-        monitor.record_gauge(stat='%s.rules.created_24hours_ago.sum_locks_replicating_cnt' % scope, value=result)
-
-        # check replicating rules older than 1 week
-        timeLimit = datetime.datetime.utcnow() - datetime.timedelta(hours=168)
-        sql = "select sum(locks_replicating_cnt)  from atlas_rucio.rules where scope='tests' and account='ddmadmin' \
-              and rse_expression!='CERN-PROD-RUCIOTEST_DATADISK' and state in ('S','R') and created_at <= to_timestamp('" + str(timeLimit) + "','YYYY-MM-dd HH24:MI:SS.FF')"
-        result = session.execute(sql).fetchone()[0] or 0
-        print 'rules.created_1week_ago.sum_locks_replicating_cnt %s' % (result)
-        monitor.record_gauge(stat='%s.rules.created_1week_ago.sum_locks_replicating_cnt' % scope, value=result)
+        #check stuck and replicating files which are more than X old
+        for aname, adelta in ages.items():
+            timeLimit = datetime.datetime.utcnow() - adelta
+            stuck_rules_sql = "select sum(locks_stuck_cnt) from {schema}rules where state='S' and created_at <= to_timestamp('".format(schema=schema) + str(timeLimit) + "','YYYY-MM-dd HH24:MI:SS.FF')"
+            result = session.execute(stuck_rules_sql).fetchone()[0] or 0
+            print 'rules.no_of_files.stuck.%s.sum_locks_stuck_cnt %s' % (aname,result)      
+            monitor.record_gauge(stat='rules.no_of_files.stuck.%s.sum_locks_stuck_cnt' % (aname), value=result)
+            replicating_rules_sql = "select sum(locks_replicating_cnt) from {schema}rules where \
+                   state in ('S','R') and created_at <= to_timestamp('".format(schema=schema) + str(timeLimit) + "','YYYY-MM-dd HH24:MI:SS.FF')"
+            result = session.execute(replicating_rules_sql).fetchone()[0] or 0
+            print 'rules.no_of_files.replicating.%s.sum_locks_replicating_cnt %s' % (aname,result)
+            monitor.record_gauge(stat='rules.no_of_files.replicating.%s.sum_locks_replicating_cnt' % (aname), value=result)
 
     except:
+        print traceback.format_exc()
         sys.exit(UNKNOWN)
     finally:
         session.remove()
