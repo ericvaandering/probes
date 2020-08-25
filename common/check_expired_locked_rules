@@ -19,7 +19,6 @@ from __future__ import print_function
 import sys
 from datetime import datetime
 
-from rucio.common.config import config_get
 from rucio.core import monitor
 from rucio.db.sqla import models
 from rucio.db.sqla.session import BASE, get_session
