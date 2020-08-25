@@ -23,14 +23,8 @@ from prometheus_client import CollectorRegistry, push_to_gateway
 from rucio.common.config import config_get
 from rucio.core import monitor
 from rucio.db.sqla import models
-from rucio.db.sqla.session import get_session
-from sqlalchemy import func
-
 from rucio.db.sqla.session import BASE, get_session
 from sqlalchemy import func
-from rucio.common.config import config_get
-from sqlalchemy.sql import exists
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
 # Exit statuses
 OK, WARNING, CRITICAL, UNKNOWN = 0, 1, 2, 3
@@ -39,7 +33,6 @@ if BASE.metadata.schema:
     schema = BASE.metadata.schema + '.'
 else:
     schema = ''
-
 
 PROM_SERVERS = config_get('monitor', 'prometheus_servers', raise_exception=False, default='')
 if PROM_SERVERS != '':
@@ -85,13 +78,13 @@ def main():
             status = CRITICAL
             print(row[0], row[1], row[2], row[3])
 
-        sub_query = session.query(func.count(models.ReplicationRule.id), models.ReplicationRule.rse_expression). \
-            join(models.DataIdentifier, (models.ReplicationRule.scope == models.DataIdentifier.scope)
-                 & (models.ReplicationRule.name == models.DataIdentifier.name)). \
-            filter(models.ReplicationRule.locked == True). \
-            filter(models.DataIdentifier.expired_at != None). \
-            filter(models.DataIdentifier.expired_at < datetime.utcnow()). \
-            group_by(models.ReplicationRule.rse_expression)
+        sub_query = (session.query(func.count(models.ReplicationRule.id), models.ReplicationRule.rse_expression).
+                     join(models.DataIdentifier, (models.ReplicationRule.scope == models.DataIdentifier.scope)
+                          & (models.ReplicationRule.name == models.DataIdentifier.name)).
+                     filter(models.ReplicationRule.locked == True).
+                     filter(models.DataIdentifier.expired_at != None).
+                     filter(models.DataIdentifier.expired_at < datetime.utcnow()).
+                     group_by(models.ReplicationRule.rse_expression))
         dids = sub_query.all()
         for did in dids:
             status = CRITICAL
