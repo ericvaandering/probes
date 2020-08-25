@@ -71,13 +71,13 @@ def main():
             status = CRITICAL
             print(row[0], row[1], row[2], row[3])
 
-        sub_query = (session.query(func.count(models.ReplicationRule.id), models.ReplicationRule.rse_expression).
-                     join(models.DataIdentifier, (models.ReplicationRule.scope == models.DataIdentifier.scope)
-                          & (models.ReplicationRule.name == models.DataIdentifier.name)).
-                     filter(models.ReplicationRule.locked == True).
-                     filter(models.DataIdentifier.expired_at != None).
-                     filter(models.DataIdentifier.expired_at < datetime.utcnow()).
-                     group_by(models.ReplicationRule.rse_expression))
+        sub_query = (session.query(func.count(models.ReplicationRule.id), models.ReplicationRule.rse_expression)
+                     .join(models.DataIdentifier, (models.ReplicationRule.scope == models.DataIdentifier.scope)
+                           & (models.ReplicationRule.name == models.DataIdentifier.name))
+                     .filter(models.ReplicationRule.locked == True)
+                     .filter(models.DataIdentifier.expired_at != None)
+                     .filter(models.DataIdentifier.expired_at < datetime.utcnow())
+                     .group_by(models.ReplicationRule.rse_expression))
         dids = sub_query.all()
         for did in dids:
             status = CRITICAL
