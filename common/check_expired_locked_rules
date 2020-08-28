@@ -49,7 +49,7 @@ def main():
         results = query.all()
         for row in results:
             status = CRITICAL
-            id = row[0].encode('utf-8').hex()
+            id = unicode(row[0])
             print(id, row[1], row[2])
         print('Locked expired rule counts by RSE expression')
         query = (session.query(models.ReplicationRule.scope, models.ReplicationRule.rse_expression,
