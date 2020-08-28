@@ -41,12 +41,16 @@ def main():
     session = get_session()
     try:
         print('Locked expired rules')
-        query = """select rawtohex(id), scope, name, rse_expression from {schema}rules 
-                   where locked=1 and expires_at<sys_extract_utc(localtimestamp)""".format(schema=schema)
-        for row in session.execute(query):
+        query = (session.query(models.ReplicationRule.id, models.ReplicationRule.scope, 
+        models.ReplicationRule.name, models.ReplicationRule.rse_expression))
+        .filter(models.ReplicationRule.locked == 1)
+        .filter(models.ReplicationRule.expires_at != None)
+        .filter(models.ReplicationRule.expires_at < datetime.utcnow())
+        results = query.all()
+        for row in results:
             status = CRITICAL
-            print(row[0], row[1], row[2])
-
+            id = row[0].encode('utf-8').hex()
+            print(id, row[1], row[2])
         print('Locked expired rule counts by RSE expression')
         query = (session.query(models.ReplicationRule.scope, models.ReplicationRule.rse_expression,
                                func.count(models.ReplicationRule.scope))
@@ -62,14 +66,17 @@ def main():
 
     try:
         print('Datasets expired with locked rules')
-        query = """select rawtohex(c.id), c.scope, c.name, c.rse_expression from {schema}rules c,
-                   (select a.scope, a.name from {schema}dids a
-                   where a.expired_at is not null and a.expired_at < sys_extract_utc(localtimestamp)
-                   and exists (select 1 from {schema}rules b where a.scope=b.scope and a.name=b.name and locked=1)) d
-                   where c.scope=d.scope and c.name=d.name and locked=1""".format(schema=schema)
-        for row in session.execute(query):
+        query = (session.query(models.ReplicationRule.id,models.ReplicationRule.scope,
+        models.ReplicationRule.name,models.ReplicationRule.rse_expression)
+        .join(models.DataIdentifier, (models.ReplicationRule.scope == models.DataIdentifier.scope)
+                           & (models.ReplicationRule.name == models.DataIdentifier.name))
+                     .filter(models.ReplicationRule.locked == True)
+                     .filter(models.DataIdentifier.expired_at != None)
+                     .filter(models.DataIdentifier.expired_at < datetime.utcnow()))
+        for row in query.all():
             status = CRITICAL
-            print(row[0], row[1], row[2], row[3])
+            id = unicode(row[0])
+            print(id, row[1], row[2], row[3])
 
         sub_query = (session.query(func.count(models.ReplicationRule.id), models.ReplicationRule.rse_expression)
                      .join(models.DataIdentifier, (models.ReplicationRule.scope == models.DataIdentifier.scope)
