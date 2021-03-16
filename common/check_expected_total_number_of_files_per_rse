@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright European Organization for Nuclear Research (CERN) 2013
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +34,6 @@ if __name__ == "__main__":
         for rse, count_files in result:
             monitor.record_gauge(stat='judge.expected_number_of_files.%s' %rse, value=count_files)
     except:
-        print traceback.format_exc()
+        print(traceback.format_exc())
         sys.exit(UNKNOWN)
     sys.exit(OK)
