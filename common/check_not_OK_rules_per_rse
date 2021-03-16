@@ -36,7 +36,7 @@ if __name__ == "__main__":
                  where request_type='T' and rules.state!='O' \
                  group by {schema}rses.rse""".format(schema=schema)
         result = session.execute(sql).fetchall()
-        for count, rse in result:
+        for rse, count in result:
             monitor.record_gauge(stat='not_OK_rules.%s' %rse, value=count)
         sql = """select /*+ index_ffs(REQUESTS REQUESTS_TYP_STA_CRE_IDX) */ {schema}rses.rse rse, COUNT (DISTINCT rule_id) \
                  from {schema}requests \
@@ -45,7 +45,7 @@ if __name__ == "__main__":
                  where request_type='T' and rules.state='R' \
                  group by {schema}rses.rse""".format(schema=schema)
         result = session.execute(sql).fetchall()
-        for count, rse in result:
+        for rse, count in result:
             monitor.record_gauge(stat='replicating_rules.%s' %rse, value=count)
     except:
         print(traceback.format_exc())
