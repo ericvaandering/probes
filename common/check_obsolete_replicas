@@ -12,6 +12,7 @@
 '''
 Probe to check the backlog of obsolete replicas.
 '''
+from __future__ import print_function
 
 import sys
 
@@ -83,6 +84,6 @@ END;
 '''.format(schema=schema)
         SESSION.execute(QUERY)
     except Exception as error:
-        print error
+        print(error)
         sys.exit(UNKNOWN)
     sys.exit(OK)
